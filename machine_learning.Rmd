@@ -52,10 +52,11 @@ stopCluster(cluster)
 registerDoSEQ()
 ```
 
-After training the model, the accuracy is described below. The accuracy on the training data is high (99.5%). However, even with 10-fold cross validation, the out-of-sample error rate is likely higher than 0.5% since random forests tends to overfit the training data.
+After training the model, the accuracy is described below. The accuracy on the training data is high (99.5%). By examining the confusion matrix, we see that the out of sample error is approximately 0.39%.
 
 ```{r model description}
 modelRF
+modelRF$finalModel
 ```
 
 The model is then used to predict the 20 test cases provided in the test set. 
