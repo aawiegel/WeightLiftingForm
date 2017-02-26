@@ -1,0 +1,66 @@
+---
+title: "Predicting Good Form in Weight Lifting"
+author: "Aaron W"
+date: "February 25, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(parallel)
+library(doParallel)
+library(caret)
+library(randomForest)
+```
+
+This report uses machine learning to predict if weight lifting exercises are done with proper form from on-body motion sensors. A random forest model is used to predict whether the exercise was executed correctly (class 'A') or done with any number of common mistakes (classes 'B' through 'E'). More information can be found [here](http://groupware.les.inf.puc-rio.br/har) or at the following reference: Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013 
+
+
+First, both the test and training data set are loaded and processed in the same way. Information identifying the user and time are removed since we are not interested in these as predictors. Any columns with "NA" values are removed from the training set. Finally, the same columns are selected from the test data set.
+
+```{r load}
+training <- read.csv(".\\data\\pml-training.csv", na.strings = c("NA", "#DIV/0!"))
+testing <- read.csv(".\\data\\pml-testing.csv", na.strings = c("NA", "#DIV/0!"))
+
+# Remove first 7 columns that contain user and time information
+training <- training[,-(1:7)]
+
+# Columns with NA values are removed
+training <- training[colSums(is.na(training)) == 0]
+
+# The same columns are selected in the test data set
+testing <- testing[names(testing) %in% names(training[-ncol(training)])]
+
+```
+
+Because of the size of the data set and the computational expense of a random forest model, parallel processing of the data is used. (Special thanks to Len Greski for [instructions](https://github.com/lgreski/datasciencectacontent/blob/master/markdown/pml-randomForestPerformance.md) on setting up parallel processing.) A 10-fold cross-validation procedure is used to randomly subset the training data into 10 subsamples. Each of these subsamples is in turn used as validation data to test a model trained on the other 9 subsamples.  This cross-validation procedure helps reduce the amount of overfitting in the model. The data is then trained using a random forest model. This process is cached to avoid running it several times.
+
+```{r training, cache=TRUE, message=FALSE}
+# Use all but two of available logical processors (i.e., all but one physical core)
+cluster <- makeCluster(detectCores() - 2)
+registerDoParallel(cluster)
+
+# set up train control object to use 10-fold cross validation and parallel processing
+fitControl <- trainControl(method = "cv", number = 10, allowParallel = TRUE)
+
+# train model with random forests and 10-fold cross validation
+modelRF <- train(classe ~ ., method="rf", data=training, trControl = fitControl)
+
+# Stop cluster and return to single-threaded processing in R
+stopCluster(cluster)
+registerDoSEQ()
+```
+
+After training the model, the accuracy is described below. The accuracy on the training data is high (99.5%). However, even with 10-fold cross validation, the out-of-sample error rate is likely higher than 0.5% since random forests tends to overfit the training data.
+
+```{r model description}
+modelRF
+```
+
+The model is then used to predict the 20 test cases provided in the test set. 
+
+```{r model predictions}
+testPred <- predict(modelRF, testing)
+testPred
+```
